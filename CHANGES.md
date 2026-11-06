@@ -101,3 +101,39 @@ clips exist (`lessons.py` re-measures them from the clips).
   ("addition always starts from ones"). Built as the deck - say if you want ones-first here too.
 - P2/P3 WA1 is a wiggle only (no line), as the deck - the child hears nothing new on the first mistake.
 - Register: all आप (टैप करिए / बनाइए) - consistent.
+
+---
+
+# Round 2 — user changes (2026-11-06)
+
+| # | ask (summary) | status | what was done / proof |
+|---|---|---|---|
+| R1 | all Hindi VO generated (Indian accent) if the Gemini key fails; reuse File8's VO where it fits the PPT | ✅ DONE | 84/84 lines on disk: 25 are File8's own clips (identical words), 59 rendered with edge-tts `hi-IN-SwaraNeural` (`tools/build_vo_edge.py`, File8's finishing chain); cue times re-measured from the clips |
+| R2 | cover like File8 | ✅ DONE | `pile: true`: Rumi & Rohan walk in carrying 26 and 18, the ones gather (ten of them stack and become a rod), then the tens; the pile glows, the cheer — no written sum (as File8) |
+| R3 | page 1: no heading; table/blocks the size of the other pages; button pulse as → | ✅ DONE | heading removed; the page now uses the stacked table's row (same G / rowH / column width), centred in the card; `.pv-make.pulse` = the → button's exact animation |
+| R4 | page 2 in sync with VO, as File8 page 1 | ✅ DONE | same module as File8; with real clips the names, blocks, 23, + 18, line and ?? come on their words |
+| R5 | page 3: as File8; ones further apart; button centred under the table; the forming ten stayed out of the table | ✅ DONE | cube gap doubled (G×.5); button at the table's centre under it; makeTen stacks the cubes at the rod's width so the ten stays in its cell |
+| R6 | carry rod goes into the table's heading row (no words, taller); small rod; child taps it down; carry number in a green circle above the written sum | ✅ DONE | carry row (head 80, no दहाई/इकाई words — user's choice), the child drags the new ten to a tile there (it shrinks), taps it down with the tens; green "1" badge over the first number's tens digit |
+| R7 | page 4 as File8 page 3, carry number above the addition | ✅ DONE | pile animation as File8 + ten ones becoming the 4th rod; green "1" over 23 as it forms |
+| R8 | all pages: ones spacing, button centred under the table, pulse as → | ✅ DONE | in the shared table/button code (T3, G1–G4, the P-hints) |
+| R9 | pages 6, 7: carry hidden behind the instruction panel | ✅ DONE | the solo sum row and written sum lower (y 244→300; P-hints 272/262→330/320) |
+| R10 | typing must start from the ones | ✅ DONE | keypad back to ones-first everywhere (G4, P2, P3); WA3 keys light ones then tens |
+| R11 | hints as File8 unless the PPT names them | ✅ DONE | WA3 now adds File8's lines: cards "सही जोड़ वाली संख्या यह है।" / "सही संख्या यह है।"; keypad "कुल 2 इकाई हैं, तो सही संख्या यह है।" then the tens line, idle "सही संख्या यह है।"; WA1/WA2 stay as the PPT |
+| — | test muted | ✅ DONE | all test browsers run with `--mute-audio` |
+
+Verification (muted headless autoplay): all 12 slides play to the end, 0 game errors (only the local test server's favicon 404);
+G2, G4, P1, P2, P3 re-run with 3 wrong answers — every help step fires. Still to ear-check: the 59 edge-tts clips are
+stand-ins (re-render with Gemini `python tools/build_vo.py --force <ids>` or recordings `--from <folder>` before release).
+Ravi & Sona are still the placeholder art (`bash tools/gen_story_kids.sh` once the Gemini key has credit).
+Kept on page 1 only: the दहाई / इकाई words on the table (no carry there, and its VO says "दहाई की जगह").
+
+# Round 3 — user changes (2026-11-06)
+
+| # | ask (summary) | status | what was done / proof |
+|---|---|---|---|
+| S1 | दहाई / इकाई stay in the table head; only when the carry rod goes up do they go and the head grows; carry number a little higher | ✅ DONE | `V.openCarry()`: called once the ten is made (and in the P-hints' animation) — the words fade, the head grows 44→80, the rows, blocks, grey copies and written sum slide down; the solo sum row gets its words back; green badge raised (−.42em) |
+| S2 | page 1: bigger table | ✅ DONE | G 27, row 176, head 58 (was the other pages' 19 / 122 / 44) |
+| S3 | hand nudge with "अब दहाइयों को जोड़िए" on the head-row rod (and on the ones) — first time only, later pages only when idle | ✅ DONE | `PV_FIRST_TAP` in moveKind: the hand on the first ones block / on the carried ten the first time each kind is added in the lesson (page 3 in a play-through); probe: hand shown 5.6 s in with the ones tappable; logged under the carry rod at the tens |
+| S4 | page 9: the written sum hidden behind the options after a wrong answer | ✅ DONE | WA1 moves the cards under the written sum's "?" (≥ its bottom + 34); with the plain head the "?" now ends at ~511, cards at 545 |
+
+Verification (muted): T1, T3, G1, G2 played through; P1 with 2 wrong answers; 0 game errors.

@@ -1148,7 +1148,10 @@ const PVK = (function(){
     setXY(e, cx, y); return e;
   }
 
-  return { reduce, px, wait, ROD, CUBE, FIT, dashBox, kNow, add, setXY, xy, knock, pop, show, shake, repulse, softGlow, scene, ctx, run, block, glide, shift,
+  /* [pv regroup add] a block changes size (the carry row's small rod and back), smoothly; its top-left stays the anchor */
+  function resize(e, w, h, ms){ e.style.transition = "width " + (ms || 0) + "ms ease, height " + (ms || 0) + "ms ease";
+    e.style.width = px(w); e.style.height = px(h); e._w = w; e._h = h; setTimeout(()=>{ e.style.transition = ""; }, (ms || 0) + 40); }
+  return { resize, reduce, px, wait, ROD, CUBE, FIT, dashBox, kNow, add, setXY, xy, knock, pop, show, shake, repulse, softGlow, scene, ctx, run, block, glide, shift,
            hand, centre, numHTML, numCard, lightDigit, equation, spreadEq, person };
 })();
 
@@ -1234,6 +1237,8 @@ Object.assign(PVK, (function(){
     const gh = b.cloneNode(false); gh.className = "pv-blk pv-ghost pv-" + (b._kind === "t" ? "rod" : "cube");
     setXY(gh, b._x, b._y); A.sc.insertBefore(gh, b); A.ghosts.push(gh);
     const dest = S.list(b._kind), p = S.slot(b._kind, dest.length, dest.length + 1); dest.push(b);
+    /* [pv regroup add] a rod from the carry row is small: it grows to the row's rod size as it flies */
+    if(b._kind === "t" && S.rH && Math.abs(b._h - S.rH) > 1) K.resize(b, S.rH / ROD.ar, S.rH, ms == null ? 620 : ms);
     b.style.zIndex = 30; S.relayout(ms == null ? 620 : ms, b);
     return glide(b, p, ms == null ? 620 : ms, true).then(()=>{ b.style.zIndex = ""; K.knock(); S.relayout(220); });
   }
@@ -1263,10 +1268,12 @@ Object.assign(PVK, (function(){
     S.cubes = rest; S.laneRod = ten[9];                               // (a stand-in until the rod is made: the layout leaves its place)
     const q = S.onesBox(rest.length, true), rx = q.rx, ry = q.ry, sc = S.sc;
     rest.forEach((c, i)=> glide(c, S.onesXY(i), 560, false));
-    const unit = S.G * CUBE.pitch;                                 // one cube's step = one tenth of the rod
+    /* [pv regroup add] the cubes take the rod's width as they stack (a stacked-table rod is shorter than ten of its row's
+       cubes), so the ten they make is exactly the rod and stays inside its cell (user 2026-11-06: "it gets out of table") */
+    const cw = S.rW || S.G, unit = cw * CUBE.pitch;                 // one cube's step = one tenth of the rod
     ring(S, false);
     await Promise.all(ten.map((c, j)=> wait(j * 45).then(()=>{
-      c.style.zIndex = 30;
+      c.style.zIndex = 30; if(Math.abs(c._w - cw) > .5) K.resize(c, cw, cw * CUBE.ar, 560);
       return glide(c, { x: rx, y: ry + (9 - j) * unit }, 560, true);
     })));
     await wait(140);
@@ -2012,18 +2019,23 @@ Object.assign(PVK, (function(){
    transfer(), childBuild(), the sources and the beats work on it as on File7's one table. CSS [pv add]. ---- */
 Object.assign(PVK, (function(){
   const K = PVK, { px, add, setXY, glide, wait, pop } = K;
-  /* o: { cx, y, G (a cube's width - a rod is ten of them), rowH, head }. V.show(n): the frame shows its first n rows */
+  /* o: { cx, y, G (a cube's width - a rod is ten of them), rowH, head, carry }. V.show(n): the frame shows its first n rows.
+     [pv regroup add] File10 (user 2026-11-06): the cubes further apart (g: a cube's half, was a quarter) so eleven or more in the
+     sum row still read as single blocks; o.carry: the head row can become the CARRY row - V.openCarry(): only when a new ten
+     has to go up there, the दहाई / इकाई words fade, the head grows to o.carryHead and the rows move down; the new ten then
+     stands there (small) over the tens column until the tens are added (V.carry: a row to the kit) */
   function vtable(sc, o){
     /* a rod a little shorter than its row (user 2026-10-29: "the tens block is touching the table border") */
-    const G = o.G, g = Math.max(3, Math.round(G * .24)), rH = Math.min(G * K.ROD.ar, Math.round(o.rowH * .82)), rW = rH / K.ROD.ar, rg = Math.max(5, Math.round(G * .55)), cH = G * K.CUBE.ar;
+    const G = o.G, g = Math.max(4, Math.round(G * .5)), rH = Math.min(G * K.ROD.ar, Math.round(o.rowH * .82)), rW = rH / K.ROD.ar, rg = Math.max(5, Math.round(G * .55)), cH = G * K.CUBE.ar;
     const head = o.head || 44, rowH = o.rowH, colW = Math.round(9 * G + 8 * rg + 24), W = 2 * colW, x = o.cx - W / 2, fs = Math.round(head * .6);
     const el = add(sc, "div", "pv-table pv-vt", "width:" + px(W) + ";height:" + px(head + 3 * rowH) + ";--head:" + px(head));
-    el.innerHTML = '<div class="pv-th pv-th-t" style="width:' + px(colW) + ';height:' + px(head) + ';font-size:' + px(fs) + '">दहाई</div>' +
-      '<div class="pv-th pv-th-o" style="left:' + px(colW) + ';right:0;height:' + px(head) + ';font-size:' + px(fs) + '">इकाई</div>' +
+    const lab = { t: "दहाई", o: "इकाई" };
+    el.innerHTML = '<div class="pv-th pv-th-t" style="width:' + px(colW) + ';height:' + px(head) + ';font-size:' + px(fs) + '">' + lab.t + '</div>' +
+      '<div class="pv-th pv-th-o" style="left:' + px(colW) + ';right:0;height:' + px(head) + ';font-size:' + px(fs) + '">' + lab.o + '</div>' +
       [0, 1, 2].map(r => '<i class="pv-vt-row pv-vt-r' + r + '" style="top:' + px(head + r * rowH) + ';height:' + px(rowH) + '"></i>').join("") +
       '<i class="pv-div" style="left:' + px(colW - 1.5) + '"></i>';
     setXY(el, x, o.y);
-    const V = { sc, el, x, y: o.y, W, H: head + 3 * rowH, head, rowH, colW, cx: o.cx, G,
+    const V = { sc, el, x, y: o.y, W, H: head + 3 * rowH, head, head0: head, n: 3, canCarry: !!o.carry, rowH, colW, cx: o.cx, G,
                 th: el.querySelector(".pv-th-t"), oh: el.querySelector(".pv-th-o"), bands: [...el.querySelectorAll(".pv-vt-row")] };
     function row(r){
       const R = { sc, V, r, el: V.bands[r], x, y: o.y + head + r * rowH, W, H: rowH, G, g, rH, rW, rg, cH, pad: 0, head: 0, inH: rowH, tensW: colW, onesW: colW,
@@ -2057,14 +2069,40 @@ Object.assign(PVK, (function(){
     V.rows = [0, 1, 2].map(row);
     /* the thick line over the sum row (no "+" left of the table - user 2026-10-29: the "+" is only the written sum's) */
     V.line = add(sc, "i", "pv-vt-line pv-hide", "width:" + px(W - 6)); setXY(V.line, x + 3, o.y + head + 2 * rowH - 3);   // (inside the table's border - user 2026-10-29)
-    V.show = n =>{ el.style.height = px(head + n * rowH); el.classList.toggle("pv-vt-2", n === 2);
+    V.show = n =>{ V.n = n; el.style.height = px(V.head + n * rowH); el.classList.toggle("pv-vt-2", n === 2);
       if(n >= 3) K.show(V.line); };
     V.lightRow = (r, on)=> V.bands[r].classList.toggle("on", on !== false);
     V.moveBy = (dy, ms)=>{ if(!dy) return K.wait(0); V.y += dy; PVSFX.move();
       [el, V.line].forEach(e => K.shift(e, 0, dy, ms));
       V.rows.forEach(R =>{ R.y += dy; R.ghosts.forEach(g => K.shift(g, 0, dy, ms)); R.relayout(ms); });
+      if(V.carry){ V.carry.y += dy; V.carry.x = V.x; V.carry.ghosts.forEach(g => K.shift(g, 0, dy, ms)); V.carry.relayout(ms); }
       return K.wait(ms); };
-    V.ghosts = ()=> V.rows.flatMap(R => R.ghosts);
+    V.ghosts = ()=> V.rows.concat(V.carry ? [V.carry] : []).flatMap(R => R.ghosts);
+    /* the carry row opens (only when a new ten has to go up): the words go, the head grows, everything under it moves down
+       by the difference (the rows' blocks, grey copies, the line). The written sum is the page's to move (pvAddYs). */
+    V.openCarry = ms =>{
+      if(V.carry || !V.canCarry) return K.wait(0);
+      ms = ms == null ? 500 : ms;
+      const nh = o.carryHead || 80, dh = nh - V.head;
+      el.classList.add("pv-vt-carry"); V.head = nh; el.style.setProperty("--head", px(nh));
+      [V.th, V.oh].forEach(e => e.style.height = px(nh));
+      V.bands.forEach((b, r)=> b.style.top = px(nh + r * rowH));
+      el.style.height = px(nh + V.n * rowH); V.H = nh + 3 * rowH;
+      K.shift(V.line, 0, dh, ms); PVSFX.move();
+      V.rows.forEach(R =>{ R.y += dh; R.ghosts.forEach(g => K.shift(g, 0, dh, ms)); R.relayout(ms); });
+      const cRH = Math.round(nh * .78), cRW = cRH / K.ROD.ar;
+      const Cr = { sc, V, r: "c", el: V.th, x: V.x, y: V.y, W, H: nh, G, g, rH: cRH, rW: cRW, rg, cH, pad: 0, head: 0, inH: nh, tensW: colW, onesW: colW,
+                   rods: [], cubes: [], ghosts: [], extra: [], th: V.th, oh: V.oh, laneRod: null };
+      Cr.tensXY = (j, n)=>{ n = Math.max(n == null ? Cr.rods.length : n, j + 1, 1); const grp = n * cRW + (n - 1) * rg;
+        return { x: Cr.x + (colW - grp) / 2 + j * (cRW + rg), y: Cr.y + (nh - cRH) / 2 }; };
+      Cr.onesXY = ()=> ({ x: Cr.x + colW * 1.5, y: Cr.y + nh / 2 });
+      Cr.slot = (kind, i, n)=> kind === "t" ? Cr.tensXY(i, n) : Cr.onesXY(i, n);
+      Cr.list = kind => kind === "t" ? Cr.rods : Cr.cubes;
+      Cr.relayout = (ms2, skip)=>{ Cr.rods.forEach((b, j)=>{ if(b !== skip && !b._gl) glide(b, Cr.tensXY(j), ms2 == null ? 320 : ms2, false); }); };
+      Cr.all = ()=> [...Cr.rods, ...Cr.cubes];
+      V.carry = Cr;
+      return K.wait(ms + 60);
+    };
     return V;
   }
   /* the written sum: a / + b / a line / ? - placed (and moved, resized) by place(cx, ys = the three rows' middles, h) */
@@ -2086,8 +2124,9 @@ Object.assign(PVK, (function(){
       e.textContent = String(v); e.classList.remove("pv-qd"); e.classList.add("pv-df"); pop(e);
       if(!W.q.querySelector(".pv-qd")) W.q.classList.add("filled"); };
     W.fill = n =>{ W.q.innerHTML = K.numHTML(n); W.q.classList.add("filled"); W.q.classList.remove("pv-typein"); pop(W.q); };
-    /* [pv regroup add] the carried ten, the NCERT way (deck mockups pages 8-10): a red 1 over the first number's tens
-       digit, the moment the new ten goes into the tens column. A child of that digit's box - it moves and scales with it */
+    /* [pv regroup add] the carried ten: its number over the first number's tens digit, in a green circle (File8's digit
+       badges - user 2026-11-06), the moment the new ten goes into the carry row. A child of that digit's box - it moves and
+       scales with it */
     W.carry = ()=>{ const dt = W.a.querySelector(".pv-dt"); if(!dt || dt.querySelector(".pv-carry")) return null;
       const c = document.createElement("span"); c.className = "pv-carry"; c.textContent = "1"; dt.appendChild(c); pop(c); return c; };
     W.lightCarry = ()=>{ const c = W.a.querySelector(".pv-carry"); if(!c) return; c.classList.remove("pv-say"); void c.offsetWidth; c.classList.add("pv-say"); };
@@ -2103,7 +2142,14 @@ Object.assign(PVK, (function(){
     const [R0, R1, S] = V.rows, other = kind === "o" ? "t" : "o", dim = [...R0.list(other), ...R1.list(other)];
     let fin = false; (C.waits = C.waits || []).push({ live: ()=> !fin, busy: ()=> false });   // (waiting for the child: the speaker may replay)
     dim.forEach(b => b.classList.add("pv-dim"));
-    try{ await K.tapAcross(C, [R0, R1], S, kind); } finally { fin = true; dim.forEach(b => b.classList.remove("pv-dim")); }
+    /* [pv regroup add] the tens: the new ten in the carry row is tapped down with them (user 2026-11-06) */
+    const from = kind === "t" && V.carry && V.carry.rods.length ? [V.carry, R0, R1] : [R0, R1];
+    /* the hand the FIRST time each kind is added in the lesson (user 2026-11-06): on the ones, and for the tens on the new
+       ten in the head row (so the child knows it is tapped too); after that only the idle hint, as before */
+    if(!PV_FIRST_TAP[kind]){ PV_FIRST_TAP[kind] = true;
+      const target = kind === "t" ? ((V.carry && V.carry.rods[0]) || R0.rods[0]) : (R0.cubes[0] || R1.cubes[0]);
+      setTimeout(()=>{ if(C.alive() && target && target.classList.contains("pv-tap")) placeNudge(target); }, 350); }
+    try{ await K.tapAcross(C, from, S, kind); } finally { fin = true; dim.forEach(b => b.classList.remove("pv-dim")); }
     C.guard(); await C.wait(250);
   }
   /* the game moves them by itself (the help ladder's last step): the ones, then the tens - [pv regroup add] File10: ten
@@ -2116,9 +2162,62 @@ Object.assign(PVK, (function(){
       if(kind === "o" && S.cubes.length >= 10){
         K.ring(S, true); await C.wait(700);
         const rod = await K.makeTen(S); C.guard(); rod._row = "new";
-        await C.wait(250); await K.putRod(S, rod); C.guard();
-        if(W) W.carry(); sfxPop(); await C.wait(450);
-      } }
+        await C.wait(250);
+        if(V.canCarry){ await Promise.all([V.openCarry(500), W ? W.place(W.cx, pvAddYs(V), W.h, 500) : null]); C.guard(); }
+        if(V.carry){ const Cr = V.carry, p = Cr.tensXY(Cr.rods.length, Cr.rods.length + 1); Cr.rods.push(rod); S.laneRod = null; S.relayout(560);
+          rod.style.zIndex = 30; K.resize(rod, Cr.rW, Cr.rH, 620); await glide(rod, p, 620, true); rod.style.zIndex = ""; K.knock(); }
+        else await K.putRod(S, rod);
+        C.guard(); if(W) W.carry(); sfxPop(); await C.wait(450);
+      }
+      if(kind === "t" && V.carry) for(const b of V.carry.rods.slice()){ K.transfer(b, V.carry, S, 560); await C.wait(300); }   // (the carried ten comes down with the tens)
+    }
+  }
+  /* [pv regroup add] the CHILD puts the new ten in the carry row (user 2026-11-06: "the carry block should go inside the heading
+     of table"): it pulses in the इकाई cell; drag it anywhere onto the carry row's tens side (or tap it) and it shrinks into
+     its place there; a target tile marks the place. cfg: { say (role, said meanwhile), demo (the ghost drag with the hand
+     once, after the line), idle (ms of no action before the ghost drag plays by itself), noHand (the ghost rod alone) } */
+  function placeCarry(C, rod, V, cfg){
+    cfg = cfg || {};
+    const Cr = V.carry, S = V.rows[2];
+    return new Promise(res =>{
+      const sc = C.sc, j = Cr.rods.length, p = Cr.tensXY(j, j + 1), home = { x: rod._x, y: rod._y }, big = { w: rod._w, h: rod._h }, H = K.hand(sc);
+      const tw = Cr.rW + 20, th = Cr.rH + 12, tile = add(sc, "div", "pv-target pv-tile", "width:" + px(tw) + ";height:" + px(th));
+      K.dashBox(tile, tw, th, 3, 8, 7, 5, true); setXY(tile, p.x - 10, p.y - 6); pop(tile);
+      rod.classList.add("pv-grab", "pulse");
+      let idleT = 0, fin = false, ghosting = 0, drag = null;
+      (C.waits = C.waits || []).push({ live: ()=> !fin, busy: ()=> false });
+      const near = (x, y)=>{ const cx = x + rod._w / 2, cy = y + rod._h / 2, m = 34;
+        return cx > Cr.x - m && cx < Cr.x + Cr.tensW + m && cy > Cr.y - m - 30 && cy < Cr.y + Cr.H + m; };
+      async function ghost(){
+        const t = ++ghosting, g = rod.cloneNode(false); g.className = "pv-blk pv-rod pv-ghostdrag"; setXY(g, home.x, home.y);
+        g.style.width = px(big.w); g.style.height = px(big.h); g._w = big.w; g._h = big.h; sc.appendChild(g);
+        if(!cfg.noHand) H.on({ x: home.x + big.w / 2, y: home.y + big.h * .55 }); await wait(320);
+        if(t === ghosting && !fin){ H.el.classList.add("press"); K.resize(g, Cr.rW, Cr.rH, 1100);
+          await Promise.all([glide(g, p, 1100, true), cfg.noHand ? null : H.to({ x: p.x + Cr.rW / 2, y: p.y + Cr.rH * .55 }, 1100)]); await wait(250); }
+        g.remove(); H.off();
+      }
+      const arm = ()=>{ clearTimeout(idleT); if(!cfg.idle) return;
+        idleT = setTimeout(()=>{ if(!C.alive() || fin || drag) return; ghost().then(arm); }, cfg.idle); };
+      const finish = ()=>{ if(fin) return; fin = true; clearTimeout(idleT); ghosting++; H.off(); H.el.remove();
+        tile.classList.add("pv-gone"); setTimeout(()=> tile.remove(), 400);
+        Cr.rods.push(rod); S.laneRod = null; S.relayout(420); rod.classList.remove("pv-grab", "pulse", "pv-new"); rod.onpointerdown = null;
+        rod.style.zIndex = 30; K.resize(rod, Cr.rW, Cr.rH, 300);
+        glide(rod, p, 300, false).then(()=>{ rod.style.zIndex = ""; K.knock(); try{ sfxCorrect(); }catch(e){} setTimeout(res, 200); }); };
+      const miss = async ()=>{ K.shake(rod, 7); try{ sfxWrongSoft(); }catch(e){} await glide(rod, home, 380, false); ghost(); arm(); };
+      rod.onpointerdown = ev =>{
+        if(fin || !C.alive() || drag) return; ev.preventDefault(); stopNudge(); clearTimeout(idleT); ghosting++;
+        const k = K.kNow(); drag = { sx: ev.clientX, sy: ev.clientY, x0: rod._x, y0: rod._y, moved: 0 };
+        rod.classList.add("lift"); rod.style.zIndex = 31;
+        try{ rod.setPointerCapture(ev.pointerId); }catch(e){}
+        const mv = e =>{ const dx = (e.clientX - drag.sx) / k, dy = (e.clientY - drag.sy) / k; drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+          setXY(rod, drag.x0 + dx, drag.y0 + dy); };
+        const up = ()=>{ rod.removeEventListener("pointermove", mv); rod.removeEventListener("pointerup", up); rod.removeEventListener("pointercancel", up);
+          rod.classList.remove("lift"); const d = drag; drag = null;
+          if(d.moved < 8 || near(rod._x, rod._y)) finish(); else miss().catch(()=>{}); };
+        rod.addEventListener("pointermove", mv); rod.addEventListener("pointerup", up); rod.addEventListener("pointercancel", up);
+      };
+      (async ()=>{ if(cfg.say && C.has(cfg.say)) await C.say(cfg.say); if(cfg.demo && !fin) await ghost(); arm(); })().catch(()=>{});
+    });
   }
   /* [pv regroup add] the "दहाई बनाइए" button of a stacked table: shown greyed (deck pages 8-10: "Show the button from beginning"),
      a tap then only shakes it - it comes alive when ten ones are in the sum row */
@@ -2155,7 +2254,10 @@ Object.assign(PVK, (function(){
     else { ringOn(); btnOn(); }
     const rod = await childMake(C, btn, S); C.guard();
     await C.wait(250);
-    await K.placeRod(C, rod, S, { say: o.place, demo: !!o.demo, idle: o.idle || IDLE_MS, noHand: !o.demo, tile: true }); C.guard();
+    if(V.canCarry){ await Promise.all([V.openCarry(500), W.place(W.cx, pvAddYs(V), W.h, 500)]); C.guard(); }
+    if(V.carry) await placeCarry(C, rod, V, { say: o.place, demo: !!o.demo, idle: o.idle || IDLE_MS, noHand: !o.demo });
+    else await K.placeRod(C, rod, S, { say: o.place, demo: !!o.demo, idle: o.idle || IDLE_MS, noHand: !o.demo, tile: true });
+    C.guard();
     W.carry(); sfxPop(); if(o.fillOnes) W.fillDigit("o", S.cubes.length);
     await C.wait(450);
   }
@@ -2165,12 +2267,14 @@ Object.assign(PVK, (function(){
   /* keep (G2/G3, SME 2026-10-30 "change screen"): the written sum stays - a / + b / line / ? beside it, smaller, its "?"
      level with the row */
   async function soloSum(C, V, W, cx, y, keep){
-    const S = V.rows[2], dx = cx - V.cx, dy = y + V.head - S.y;
+    const SH = V.head0;                                                   // (the solo row: the plain head with its words - no carry there)
+    const S = V.rows[2], dx = cx - V.cx, dy = y + SH - S.y;
     [V.el, V.line, ...V.rows[0].all(), ...V.rows[1].all(), ...V.ghosts(), ...(keep ? [] : [W.a, W.b, W.plus, W.line])].forEach(e => e.classList.add("pv-gone"));
     PVSFX.move();
-    const T = add(V.sc, "div", "pv-table pv-vt pv-vt-solo pv-hide", "width:" + px(V.W) + ";height:" + px(V.head + V.rowH) + ";--head:" + px(V.head));
+    const T = add(V.sc, "div", "pv-table pv-vt pv-vt-solo pv-hide", "width:" + px(V.W) + ";height:" + px(SH + V.rowH) + ";--head:" + px(SH));
     T.innerHTML = V.el.innerHTML; T.querySelectorAll(".pv-vt-r0, .pv-vt-r1").forEach(e => e.remove());
-    T.querySelector(".pv-vt-r2").style.top = px(V.head);
+    T.querySelectorAll(".pv-th").forEach(e => e.style.height = px(SH)); T.classList.remove("pv-vt-carry");
+    T.querySelector(".pv-vt-r2").style.top = px(SH);
     setXY(T, V.x + dx, y); await C.wait(260); K.show(T);
     S.th = T.querySelector(".pv-th-t"); S.oh = T.querySelector(".pv-th-o"); V.solo = T;
     S.x += dx; S.y += dy; S.relayout(620);
@@ -2179,8 +2283,9 @@ Object.assign(PVK, (function(){
     C.guard();
     await C.wait(250);
   }
-  return { vtable, vcards, sayEl, moveKind, autoMove, soloSum, makeButton, childMake, regroup };
+  return { vtable, vcards, sayEl, moveKind, autoMove, soloSum, makeButton, childMake, regroup, placeCarry };
 })());
+const PV_FIRST_TAP = {};   // [pv regroup add] the kinds whose first tap-down the hand has shown (moveKind)
 /* the stacked table's sizes: inside the tutorial card / under the header band (the three rows, a rod tall each, in the
    room each screen has); cards: the written sum's column (x, card height) */
 /* QA (user 2026-10-29: "add submenu for game part … I have to play the entire game to test one part"): where the game
@@ -2221,10 +2326,10 @@ function pvWalk(parent, cls, src, S, H, x, foot, dx, ms, dress){
   return new Promise(r =>{ a.onfinish = a.oncancel = ()=>{ P.remove(); r(); }; });
 }
 /* [pv regroup add] File10 page 2's one table (tutorial card): its centre, top, sizes; gap: the button / the 13 card below it */
-const PV_TEN_LAY = { cx: 666, y: 196, cube: 36, blk: 34, pad: 12, gap: 24, cardH: 72 };
+const PV_TEN_LAY = { cx: 666, y: 196, G: 27, rowH: 176, head: 58, gap: 26, cardH: 80 };   // (the table in the card's middle - no heading, user 2026-11-06)
 const PV_ADD_LAY = {
-  tut:  { cx: 560, y: 118, G: 19, rowH: 136, head: 42, cardX: 970, cardH: 72, makeX: 970, makeY: 570 },   // (T2 has no heading - user 2026-10-29: the table grows into its room; bottom 586, clear of the → button)
-  main: { cx: 500, y: 156, G: 18, rowH: 136, head: 44, cardX: 890, cardH: 74, makeX: 500, makeY: 622 }
+  tut:  { cx: 560, y: 110, G: 19, rowH: 122, head: 44, carry: true, carryHead: 80, cardX: 970, cardH: 72 },   // (File10: the carry row on top; the "दहाई बनाइए" button under the table)   // (T2 has no heading - user 2026-10-29: the table grows into its room; bottom 586, clear of the → button)
+  main: { cx: 500, y: 150, G: 18, rowH: 122, head: 44, carry: true, carryHead: 80, cardX: 890, cardH: 74 }
 };
 /* the rows' middles of a stacked table (where the written sum's cards stand) */
 const pvAddYs = V => V.rows.map(R => R.mid());
@@ -2309,6 +2414,13 @@ function pvChipPaint(){
 function pvPair(TA, TB, cx, gap, minHalf){
   const half = Math.max(Math.max(TA.W, TB.W) / 2 + (gap || 34), minHalf || 0);
   return Promise.all([TA.move(cx - half - (TA.x + TA.W / 2), 0, 650), TB.move(cx + half - (TB.x + TB.W / 2), 0, 0)]);
+}
+/* [pv regroup add] File8's keypad 3rd help (MENTAL_ADD WA3): only the right keys work, the ones first - "कुल 1 इकाई है, तो सही
+   संख्या यह है।"; once that key is typed, the tens line; idle meanwhile "सही संख्या यह है।" */
+async function pvKeysHelp(C, P){
+  P.reask = "reveal"; P.guideKeys();
+  P.onGuide = g =>{ if(g === 1) C.say("is_t").catch(()=>{}); };
+  await C.say("is_o");
 }
 function pvCelebrate(){ sfxCorrect(); try{ confettiCannon(); }catch(e){} setSwMood("happy"); }
 /* the story screen of T1 (deck page 2): the two people's portraits over their blocks - Meera's 25, Aman's own 13 in grey -
@@ -2804,14 +2916,16 @@ const PVModules = {
     mount(host, slide){
       const d = slide.data, K = PVK, sc = K.scene(host), C = K.ctx(slide, sc), CU = d.cues || {}, L = PV_TEN_LAY;
       state.ownsAudio = true; setNavActive(false); setSwMood("teach"); pvReplay(C);
-      const T = K.table(sc, { cx: L.cx, y: L.y, cube: L.cube, blk: L.blk, pad: L.pad, tensMax: 3, tensFinal: 1, onesMax: d.n });
-      T.el.classList.add("pv-hide");
-      const below = T.y + T.H + L.gap;
+      /* (user 2026-11-06: the table and blocks the size of the other pages' - the stacked table, one row, its दहाई | इकाई words
+         kept here: this page has no carry, and its line says "दहाई की जगह") */
+      const V = K.vtable(sc, Object.assign({}, PV_ADD_LAY.tut, { cx: L.cx, y: L.y, G: L.G, rowH: L.rowH, head: L.head, carry: false })), T = V.rows[0];
+      V.show(1); V.el.classList.add("pv-hide");
+      const below = V.y + V.head + V.rowH + L.gap;
       const btn = K.makeBtn(sc, L.cx, below);
       const card = K.numCard(sc, d.n, L.cx, below, L.cardH); card.classList.add("pv-hide");
       const lit = i =>{ const b = T.cubes[i]; if(!b) return; b.classList.add("pv-on"); K.beat([b], 0); PVSFX.tap(); };
       K.run(C, async ()=>{
-        await C.wait(250); K.showTable(T); PVSFX.appear(); await C.wait(250);
+        await C.wait(250); K.showTable({ el: V.el }); PVSFX.appear(); await C.wait(250);
         for(let i = 0; i < d.n; i++){ T.addBlock("o"); await C.wait(60); }
         await C.wait(600);
         await C.cue("count", (CU.count || []).map((f, i)=> [f, ()=>{ lit(i);
@@ -2890,6 +3004,7 @@ const PVModules = {
               if(!inTen){ c.remove(); to.classList.remove("pv-hide"); return; }
               made.push(c); if(made.length < 10) return;
               setTimeout(()=>{ if(!C.alive()) return; made.forEach(e => e.remove()); newRod.classList.remove("pv-hide"); K.newTen(newRod); K.pop(newRod);
+                W.carry(); sfxPop();                                     // (the carried ten over the written sum - user 2026-11-06)
                 try{ playSfxFile("sfx_correct", 0.5); }catch(e){} }, 260); }); }))); };
         const ce = CU.eq || { a: .1, op: .3, b: .45, eq: .65, n: .85 };
         await C.cue("eq", [[ce.a, ()=>{ K.show(pA); gA.all().forEach(x => K.show(x)); K.show(W.a); sfxPop(); }],
@@ -2956,7 +3071,7 @@ const PVModules = {
         await pvAddSumLine(C, V, W, "o", "o_sum");
         /* [pv regroup add] deck page 4 VO10-12: the ring, the "दहाई बनाइए" button (the child taps it), the new ten to the
            tile in the tens column - the ghost drag shown once with the line, then the child drags it */
-        await K.regroup(C, V, W, { know: "ten_know", tap: "ten_tap", place: "ten_place", demo: true, bx: L.makeX, by: L.makeY, fillOnes: true });
+        await K.regroup(C, V, W, { know: "ten_know", tap: "ten_tap", place: "ten_place", demo: true, bx: V.cx, by: V.y + V.H + 14, fillOnes: true });
         await C.say("t_add"); await K.moveKind(C, V, "t");
         await pvAddSumLine(C, V, W, "t", "t_sum");
         await pvAddTotal(C, V, W);
@@ -3009,7 +3124,7 @@ const PVModules = {
           await pvAddSumLine(C, V, W, "o", "o_sum");
           /* [pv regroup add] deck page 7 VO7-8: the ring + button with "10 इकाइयों से 1 दहाई बनती है। इस बटन पर…", the child
              makes the ten and drags it to the tile - the ghost drag only after 5 s idle (data.place_idle) */
-          await K.regroup(C, V, W, { tap: "ten_tap", place: "ten_place", idle: d.place_idle, bx: L.makeX, by: L.makeY, fillOnes: true });
+          await K.regroup(C, V, W, { tap: "ten_tap", place: "ten_place", idle: d.place_idle, bx: V.cx, by: V.y + V.H + 14, fillOnes: true });
           await C.say("t_add"); await K.moveKind(C, V, "t");
           await pvAddSumLine(C, V, W, "t", "t_sum");
           await pvAddTotal(C, V, W);
@@ -3023,11 +3138,11 @@ const PVModules = {
         K.show(W.a); await R0.fill(d.a, 80); K.popTable(R0);
         K.show(W.b); await R1.fill(d.b, 80); K.popTable(R1);
         /* [pv regroup add] deck pages 8-10: "Show the button दहाई बनाइए from beginning" (greyed until ten ones are down) */
-        const mk = d.make_btn ? K.makeButton(C, L.makeX, L.makeY) : null; if(mk){ K.show(mk); sfxPop(); }
+        const mk = d.make_btn ? K.makeButton(C, V.cx, V.y + V.H + 14) : null; if(mk){ K.show(mk); sfxPop(); }
         await C.wait(250);
         await C.cue("prompt", [[(CU.prompt || { p: .45 }).p, plusIn]]);   // "35 और 25 को जोड़िए।": the "+" on "जोड़िए"
         await K.moveKind(C, V, "o");
-        if(s % 10 < d.a % 10) await K.regroup(C, V, W, { btn: mk || undefined, bx: L.makeX, by: L.makeY });   // (idle: the button pulses, the ghost drag)
+        if(s % 10 < d.a % 10) await K.regroup(C, V, W, { btn: mk || undefined, bx: V.cx, by: V.y + V.H + 14 });   // (idle: the button pulses, the ghost drag)
         else if(mk) mk.remove();
         await K.moveKind(C, V, "t");
         if(d.answer === "numpad"){ await typeAll(); return; }
@@ -3035,26 +3150,28 @@ const PVModules = {
         $("promptText").textContent = d.prompt2; K.pop(document.querySelector(".prompt-band"));
         if(d.answer === "mcq"){
           const asking = C.say("ask");
-          await K.soloSum(C, V, W, 560, 244, true);
-          await K.mcq(C, { options: d.options, answer: s, y: 244 + L.head + L.rowH + 46, reask: "reask",
+          await K.soloSum(C, V, W, 560, 300, true);                     // (lower: the carry badge clears the band - user 2026-11-06)
+          await K.mcq(C, { options: d.options, answer: s, y: 300 + L.head + L.rowH + 46, reask: "reask",
             onReady: M =>{ M.open(); asking.then(()=> M.ready(), ()=>{}); },
             onRight: o => K.flyToQ(C, o, W),
             sayCorrect: ()=> C.cue("correct", [[((CU[C.right("correct")] || CU.correct || {}).n) || .8, ()=> K.sayEl(W.q)]]),
-            ladder: async (n, M)=>{ if(n === 1) await C.say("h1"); else if(n === 2) await h2(); else M.lock(); } });   // (WA3: the right card lit, the others faded - no line, deck pages 8-9)
+            ladder: async (n, M)=>{ if(n === 1) await C.say("h1"); else if(n === 2) await h2(); else { M.lock(); await C.say("reveal"); } } });   // (WA3: the right card lit, the others faded + File8's "सही जोड़ वाली संख्या यह है।")
           return;
         }
       });
       /* [pv regroup add] G4 (deck page 10, user 2026-11-06 "follow the deck"): the blocks all down, ONE answer - the written
-         sum's "?" (its two boxes; the hand on it after 7s), a tap opens the keypad, the number typed left to right (9, 2).
+         sum's "?" (its two boxes; the hand on it after 7s), a tap opens the keypad, the number typed from the ones (user
+         2026-11-06: "we always start adding from ones").
          Wrong: 1 "ब्लॉक्स को गिनिए और सही जोड़ टाइप करिए।"; 2 "ध्यान से देखिए, नई दहाई को मिलाकर कुल 9 दहाइयाँ और 2 इकाइयाँ हैं।"
-         (the columns beat as named); 3 the right keys light in turn, 9 then 2. */
+         (the columns beat as named); 3 (File8) only the right keys work, the ones first - "कुल 2 इकाई हैं, तो सही संख्या यह
+         है।", then "कुल 9 दहाई हैं, …"; idle meanwhile "सही संख्या यह है।". */
       async function typeAll(){
         GameBus.emit("pv_merge_done", { slide_id: slide.id });
-        await K.numpad(C, { answer: s, x: W.cx, y: 0, reask: "reask", target: W.q, padAt: { x: 985, y: 238 }, ltr: true, nudge: W.q,
+        await K.numpad(C, { answer: s, x: W.cx, y: 0, reask: "reask", target: W.q, padAt: { x: 985, y: 238 }, nudge: W.q,
           onReady: P => P.ready(),
           onRight: ()=> W.fill(s),
           sayCorrect: ()=> pvAddSay(C, W, "correct"),
-          ladder: async (n, P)=>{ if(n === 1) await C.say("h1"); else if(n === 2) await h2(); else P.guideKeys(); } });
+          ladder: async (n, P)=>{ if(n === 1) await C.say("h1"); else if(n === 2) await h2(); else await pvKeysHelp(C, P); } });
       }
     }
   },
@@ -3099,7 +3216,7 @@ const PVModules = {
         await build(); hide(true);
         V.show(3); PVSFX.move(); await C.wait(450);
         await K.autoMove(C, V, W); C.guard();
-        const ty = pick ? 272 : 262;                                          // (the written sum above clear of the heading)
+        const ty = pick ? 330 : 320;                                          // (the written sum + its carry badge clear of the band - user 2026-11-06)
         await K.soloSum(C, V, W, V.cx0, ty, true); C.guard();
         /* the digits: File6/File7's round badges under the columns (as File8) */
         const S = V.rows[2], S2 = pvSplit(s), dy = S.y + V.rowH + 28;
@@ -3121,12 +3238,13 @@ const PVModules = {
             onRight: o => K.flyToQ(C, o, W),
             sayCorrect: ()=> C.cue("correct", [[((CU[C.right("correct")] || CU.correct || {}).n) || .8, ()=> K.sayEl(W.q)]]),
             ladder: async (n, M)=>{
-              if(n === 1){ await build(); await C.cue("h1", [[.35, ()=> V.rows.slice(0, 2).forEach(R => K.beat(R.cubes, 50))]]); }   // WA1: "…क्या इकाइयों से नई दहाई बन रही है?"
+              if(n === 1){ await build(); M.moveTo(Math.max(540, Math.round(W.ys[2] + W.h / 2 + 34)));   // (the cards under the written sum's "?" - user 2026-11-06)
+                await C.cue("h1", [[.35, ()=> V.rows.slice(0, 2).forEach(R => K.beat(R.cubes, 50))]]); }   // WA1: "…क्या इकाइयों से नई दहाई बन रही है?"
               else if(n === 2){ M.moveTo(await merge(on => M.hide(on))); M.hide(false); }   // WA2: the options hidden meanwhile, then under the digits
-              else M.lock(); } });                                                       // WA3: the right card lit (no line - deck)
+              else { M.lock(); await C.say("reveal"); } } });                         // WA3: the right card lit + File8's "सही संख्या यह है।"
           return;
         }
-        await K.numpad(C, { answer: s, x: BIG.cx, y: 600, reask: "reask", target: W.q, padAt: PAD, ltr: true,
+        await K.numpad(C, { answer: s, x: BIG.cx, y: 600, reask: "reask", target: W.q, padAt: PAD,
           onReady: P =>{ P.hide(true); C.say("prompt").then(()=>{ P.hide(false); P.ready(); }, ()=>{}); },
           onOpen: P =>{ if(V) return; W.place(520, BIG.ys, BIG.h, 450); padTo(P, PAD.x); },   // (the sum to the left, the keypad beside it)
           onRight: ()=> W.fill(s),
@@ -3134,7 +3252,7 @@ const PVModules = {
           /* WA1: the wiggle only (deck); WA2: the keypad to the right first (File8: it never covers the sum), the blocks built and
              merged + "ध्यान से देखिए, नई दहाई को मिलाकर कुल 8 दहाइयाँ और 1 इकाई हैं।"; WA3: the right keys in turn, 8 then 1 */
           ladder: async (n, P)=>{ if(n === 2){ await padTo(P, PAD_BY_TABLE_X, 450); await merge(()=>{}); await padTo(P, PAD_BY_TABLE_X, 520); }
-            else if(n >= 3) P.guideKeys(); } });
+            else if(n >= 3) await pvKeysHelp(C, P); } });
       });
     }
   },
@@ -3910,10 +4028,17 @@ const PVLanding = {
       const W = t * (w + 4) + (u ? 8 + Math.ceil(u / 5) * (w + 2) : 0), x0 = L.MID - W / 2;
       return { t: [...Array(t)].map((_, j)=> ({ x: x0 + j * (w + 4) + w / 2, y: B })),
                o: [...Array(u)].map((_, j)=> ({ x: x0 + t * (w + 4) + 8 + Math.floor(j / 5) * (w + 2) + w / 2, y: B - (j % 5) * (ch + 2) })) }; })();
+    /* [pv regroup add] File10 (26 + 18, user 2026-11-06 "the cover as File8's"): the ones are more than ten - the first ten hop
+       onto the new rod's place (the last tens slot), stacked as its ten cubes, and become ONE rod there; the rest are the
+       pile's ones. newRods: the rods made so (they glow with the pile) */
+    const newRods = [];
     const gather = async kind =>{
       const list = plan.map((p, i)=> i).filter(i => isRod(i) === (kind === "t")).sort((a, b)=> mine(a) - mine(b));
+      const nr = kind === "o" && list.length > slots.o.length + 9 ? slots.t[slots.t.length - 1] : null, made = [];
       [0, 1].forEach(s => list.some(i => mine(i) === s) && setTimeout(()=> lean(s, 7, 520), s * 300));
-      await Promise.all(list.map((i, n)=> wait(n * 90).then(()=>{ const p = plan[i], to = slots[kind][n]; if(!to) return;
+      await Promise.all(list.map((i, n)=> wait(n * 90).then(()=>{ const p = plan[i], inTen = nr && n < 10;
+        const to = inTen ? { x: nr.x, y: nr.y - n * p[3] * 93.2 / 147 } : slots[kind][nr ? n - 10 : n]; if(!to) return;
+        if(inTen) made.push(i);
         const h = held[i] || { x: 0, y: 0, s: 1, r: 0 }, dx = to.x - p[1], dy = to.y - p[2], apex = Math.min(h.y, dy) - 46, F = [];   // (from the hands, when held)
         for(let j = 0; j <= 10; j++){ const t = j / 10, sc = (h.s + (1 - h.s) * t).toFixed(3);
           F.push({ translate: (h.x + (dx - h.x) * t).toFixed(1) + "px " + ((1 - t) * (1 - t) * h.y + 2 * (1 - t) * t * apex + t * t * dy).toFixed(1) + "px",
@@ -3922,6 +4047,15 @@ const PVLanding = {
         shadow(i, false); pcs[i].style.zIndex = 60 + n; sound(()=> PVSFX.appear());
         return pcs[i].animate(F, { duration: 480, easing: "linear", fill: "forwards" }).finished.catch(()=>{}).then(()=>{
           sound(()=> PVSFX.land()); if(n % 2 === 0) sparkle(to.x, to.y - p[4] * .6); }); })));
+      if(nr && made.length === 10){ await wait(220);
+        const ri = plan.findIndex((p, i)=> isRod(i)), rp = plan[ri], rod = pcs[ri].cloneNode(true);
+        rod.removeAttribute("data-i"); rod.classList.add("on", "sgp-newrod");
+        Object.assign(rod.style, { left: (nr.x - rp[3] / 2) + "px", top: (nr.y - rp[4]) + "px", translate: "0px 0px", scale: "1", rotate: "0deg", zIndex: 75 });
+        pcs[ri].parentNode.appendChild(rod); newRods.push(rod);
+        made.forEach(i => pcs[i].animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" }));
+        rod.animate([{ scale: ".7", opacity: 0, filter: "brightness(1.8)" }, { scale: "1.12", opacity: 1, filter: "brightness(1.5)", offset: .55 }, { scale: "1", filter: "brightness(1)" }], { duration: 520, easing: "ease-out" });
+        sparkle(nr.x, nr.y - rp[4] * .6, true); sound(()=> _tone([520, 780], "sine", .25, .08));
+        await wait(350); }
       await wait(250); };
     /* the addition cover (ART.addv), in step with the greeting as the tens cover is */
     const addv = async ()=>{
@@ -3939,9 +4073,9 @@ const PVLanding = {
         await until(BT.b); await gather("t");                                   // "संख्याओं" - then the tens
         if(CARRY) kids.forEach(kd => pose(kd, "idle", true));                   // (their hands empty now)
         await until(BT.q);                                                      // "जोड़ना" - the pile: one number now
-        idx.forEach((i, n)=> setTimeout(()=> pcs[i].classList.add("sgp-glow"), n * 40));
+        idx.forEach((i, n)=> setTimeout(()=> pcs[i].classList.add("sgp-glow"), n * 40)); newRods.forEach(e => e.classList.add("sgp-glow"));
         sparkle(L.MID - 30, slots.t.length ? slots.t[0].y - 90 : 20, true); sparkle(L.MID + 40, slots.t.length ? slots.t[0].y - 60 : 40, true);
-        await Promise.all([until(BT.cheer), wait(800)]); idx.forEach(i => pcs[i].classList.remove("sgp-glow"));   // (the glow seen a moment)
+        await Promise.all([until(BT.cheer), wait(800)]); idx.forEach(i => pcs[i].classList.remove("sgp-glow")); newRods.forEach(e => e.classList.remove("sgp-glow"));   // (the glow seen a moment)
         root.classList.add("built"); burst(L.MID, (slots.t[0] || { y: 100 }).y - 70); sound(()=> _tone([660, 880, 1180], "sine", .5, .1));
         kids.forEach(kd => pose(kd, "cheer", true)); hop(0, 1, 14); setTimeout(()=> hop(1, 1, 16), 110);
         await until(BT.end); await wait(500); return; }
@@ -4464,16 +4598,64 @@ const ASSET_SIZES = {
   "assets/voiceover/vo_ask_pick.ogg": 6682,
   "assets/voiceover/vo_ask_pick2.ogg": 12832,
   "assets/voiceover/vo_ask_type.ogg": 7041,
+  "assets/voiceover/vo_cel10.ogg": 28941,
   "assets/voiceover/vo_g1_go.ogg": 14436,
   "assets/voiceover/vo_g1_intro.ogg": 14829,
   "assets/voiceover/vo_g1_o_add.ogg": 9016,
+  "assets/voiceover/vo_g1r_correct.ogg": 20440,
+  "assets/voiceover/vo_g1r_o_sum.ogg": 17163,
+  "assets/voiceover/vo_g1r_place.ogg": 12011,
+  "assets/voiceover/vo_g1r_r1.ogg": 26043,
+  "assets/voiceover/vo_g1r_r2.ogg": 26782,
+  "assets/voiceover/vo_g1r_t_add.ogg": 8799,
+  "assets/voiceover/vo_g1r_t_sum.ogg": 22644,
+  "assets/voiceover/vo_g1r_tap.ogg": 23665,
+  "assets/voiceover/vo_g1r_total.ogg": 22793,
+  "assets/voiceover/vo_g2r_correct.ogg": 16827,
+  "assets/voiceover/vo_g2r_correct_late.ogg": 11882,
+  "assets/voiceover/vo_g2r_h2.ogg": 24331,
+  "assets/voiceover/vo_g2r_prompt.ogg": 10278,
+  "assets/voiceover/vo_g3r_correct.ogg": 17848,
+  "assets/voiceover/vo_g3r_correct_late.ogg": 12840,
+  "assets/voiceover/vo_g3r_h2.ogg": 24014,
+  "assets/voiceover/vo_g3r_prompt.ogg": 10944,
+  "assets/voiceover/vo_g4r_correct.ogg": 18008,
+  "assets/voiceover/vo_g4r_correct_late.ogg": 12305,
+  "assets/voiceover/vo_g4r_h2.ogg": 23416,
+  "assets/voiceover/vo_g4r_prompt.ogg": 17167,
   "assets/voiceover/vo_h1_pick.ogg": 13662,
   "assets/voiceover/vo_h1_type.ogg": 13465,
   "assets/voiceover/vo_idle_build_o.ogg": 6567,
   "assets/voiceover/vo_idle_build_t.ogg": 7253,
+  "assets/voiceover/vo_is_o1.ogg": 13395,
+  "assets/voiceover/vo_is_o2.ogg": 14468,
+  "assets/voiceover/vo_is_o3.ogg": 14824,
+  "assets/voiceover/vo_is_t8.ogg": 14732,
+  "assets/voiceover/vo_is_t9.ogg": 13255,
+  "assets/voiceover/vo_landing.ogg": 39399,
+  "assets/voiceover/vo_new_ten_q.ogg": 18086,
+  "assets/voiceover/vo_p1r_correct.ogg": 18064,
+  "assets/voiceover/vo_p1r_correct_late.ogg": 13087,
+  "assets/voiceover/vo_p2r_correct.ogg": 19241,
+  "assets/voiceover/vo_p2r_correct_late.ogg": 14213,
+  "assets/voiceover/vo_p2r_h2.ogg": 23179,
+  "assets/voiceover/vo_p2r_prompt.ogg": 18659,
+  "assets/voiceover/vo_p3r_correct.ogg": 18261,
+  "assets/voiceover/vo_p3r_correct_late.ogg": 13304,
+  "assets/voiceover/vo_p3r_h2.ogg": 23494,
+  "assets/voiceover/vo_p3r_prompt.ogg": 17510,
   "assets/voiceover/vo_pt_guided.ogg": 21856,
   "assets/voiceover/vo_pt_practice.ogg": 8776,
   "assets/voiceover/vo_pt_tutorial.ogg": 18002,
+  "assets/voiceover/vo_reveal_n.ogg": 8374,
+  "assets/voiceover/vo_reveal_sum.ogg": 9583,
+  "assets/voiceover/vo_t1_count.ogg": 42509,
+  "assets/voiceover/vo_t1_know.ogg": 20432,
+  "assets/voiceover/vo_t1_made.ogg": 20549,
+  "assets/voiceover/vo_t1_move.ogg": 13678,
+  "assets/voiceover/vo_t1_rest.ogg": 17171,
+  "assets/voiceover/vo_t1_tap.ogg": 13838,
+  "assets/voiceover/vo_t1_total.ogg": 20820,
   "assets/voiceover/vo_t2_go.ogg": 13389,
   "assets/voiceover/vo_t2_intro.ogg": 16484,
   "assets/voiceover/vo_t2_o_add.ogg": 8677,
@@ -4481,6 +4663,20 @@ const ASSET_SIZES = {
   "assets/voiceover/vo_t2_r1.ogg": 15398,
   "assets/voiceover/vo_t2_t_add.ogg": 9228,
   "assets/voiceover/vo_t2_tens.ogg": 13776,
+  "assets/voiceover/vo_t2s_a.ogg": 13231,
+  "assets/voiceover/vo_t2s_ask.ogg": 19195,
+  "assets/voiceover/vo_t2s_b.ogg": 21599,
+  "assets/voiceover/vo_t3_build.ogg": 15874,
+  "assets/voiceover/vo_t3_done.ogg": 19796,
+  "assets/voiceover/vo_t3_head.ogg": 13471,
+  "assets/voiceover/vo_t3_know.ogg": 19627,
+  "assets/voiceover/vo_t3_o_sum.ogg": 17032,
+  "assets/voiceover/vo_t3_place.ogg": 12701,
+  "assets/voiceover/vo_t3_r2.ogg": 16647,
+  "assets/voiceover/vo_t3_t_sum.ogg": 22809,
+  "assets/voiceover/vo_t3_total.ogg": 22285,
+  "assets/voiceover/vo_t4_eq.ogg": 12078,
+  "assets/voiceover/vo_t4_tot.ogg": 16765,
   "assets/voiceover/vo_tap_o.ogg": 9724,
   "assets/voiceover/vo_tap_t.ogg": 10630
 };

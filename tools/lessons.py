@@ -54,7 +54,8 @@ slides = []
 # deck page 2 - 10 इकाइयाँ = 1 दहाई: 13 ones, the first ten counted, ringed, made into a rod by the child, the rod to the tens,
 # the three left counted, "13" under the table
 slides.append({
-    "id": "T1", "phase": "tutorial", "eis": "iconic", "type": "PV_MAKE_TEN", "prompt_hi": "10 इकाइयाँ = 1 दहाई",
+    "id": "T1", "phase": "tutorial", "eis": "iconic", "type": "PV_MAKE_TEN", "prompt_hi": "",   # (no heading - user 2026-11-06)
+   
     "audio": {"count": vo("vo_t1_count", "यहाँ कुछ ब्लॉक्स हैं। चलिए, इन्हें गिनते हैं—एक, दो, तीन, चार, पाँच, छह, सात, आठ, नौ, दस।"),
               "know": vo("vo_t1_know", "जैसा कि हम जानते हैं, 10 इकाइयाँ मिलकर 1 दहाई बनाती हैं।"),
               "tap": vo("vo_t1_tap", "इस बटन पर टैप करिए और दहाई बनाइए।"),
@@ -124,6 +125,12 @@ slides.append({
     "data": {"a": 28, "b": 15, "build": True, "answer": "none", "idle_hand": True, "place_idle": 5000}})
 
 
+def is_lines(au, s):
+    """File8's keypad WA3: only the right keys work, the ones first - "कुल 2 इकाई हैं, तो सही संख्या यह है।", then the tens"""
+    for k, name, v in (("o", "इकाई", s % 10), ("t", "दहाई", s // 10)):
+        au["is_" + k] = vo(f"vo_is_{k}{v}", f"कुल {v} {name} {'है' if v == 1 else 'हैं'}, तो सही संख्या यह है।")
+
+
 def pv_add(sid, a, b, answer, text, options=None):
     """deck pages 9, 8, 10: the tables come with a and b built one by one, the "दहाई बनाइए" button there from the start; the
     child moves the ones, makes the ten, puts it in the tens, moves the tens; then the answer - three cards (the sum row moves
@@ -138,6 +145,9 @@ def pv_add(sid, a, b, answer, text, options=None):
     au.update(TAP)
     if pick:
         au["ask"] = vo("vo_ask_pick2", "बहुत बढ़िया! अब सही जोड़ चुनिए।")
+        au["reveal"] = vo("vo_reveal_sum", "सही जोड़ वाली संख्या यह है।")       # WA3 (File8's line - the deck names none)
+    else:
+        is_lines(au, s)
     d = {"a": a, "b": b, "build": False, "answer": answer, "prompt2": text, "make_btn": True}
     if options:
         d["options"] = options
@@ -155,10 +165,12 @@ def mental(sid, a, b, answer, text, options=None):
     au = {"prompt": ASK_PICK if pick else vo(f"vo_{low}r_prompt", f"{a} और {b} को जोड़िए और सही जोड़ टाइप करिए।"),
           "correct": vo(f"vo_{low}r_correct", f"शाबाश! {a} और {b} का जोड़ {s} है।"),
           "reask": ASK_PICK if pick else ASK_TYPE}
+    au["reveal"] = vo("vo_reveal_n", "सही संख्या यह है।")                       # WA3 (File8's line - the deck names none)
     if pick:   # WA1: the tables built + this line; WA2: the blocks merged + "ब्लॉक्स को गिनिए…"; WA3: the right card lit
         au["h1"] = vo("vo_new_ten_q", "ध्यान से देखिए, क्या इकाइयों से नई दहाई बन रही है?")
         au["h2"] = H_PICK
-    else:      # WA1: a wiggle; WA2: the blocks built and merged + this line; WA3: the keys in turn
+    else:      # WA1: a wiggle; WA2: the blocks built and merged + this line; WA3: the keys in turn (File8's lines)
+        is_lines(au, s)
         au["h2"] = vo(f"vo_{low}r_h2", f"ध्यान से देखिए, नई दहाई को मिलाकर कुल {st} दहाइयाँ और {so} {'इकाई' if so == 1 else 'इकाइयाँ'} हैं।")
     d = {"a": a, "b": b, "answer": answer}
     if options:
@@ -328,10 +340,10 @@ card = {
     "part_label": "",
     "theme": "toybox",
     "title": {"hi": "संख्या जोड़, नई दहाई बनाकर", "en": "Adds vertically with regrouping"},
-    # the cover (deck page 1): two children with their blocks, 26 / + 18 / ? written one under the other between them, in
-    # step with the greeting. The children are File8's cover children (Rumi & Rohan), walking in side-on as there.
+    # the cover (deck page 1's 26 + 18) as File8's (user 2026-11-06): Rumi & Rohan walk in carrying their blocks, the blocks
+    # come together - the ones first (ten of them become a new rod), then the tens - in step with the greeting
     "landing_hero": {"kind": "pv_story", "people": ["rumi", "rohan"], "build": "addv", "title_look": "wall", "title_paint": "meadow",
-                     "walk": True, "pile": False, "start_at": 0, "a": 26, "b": 18, "beats": BEATS,
+                     "walk": True, "pile": True, "start_at": 0, "a": 26, "b": 18, "beats": BEATS,
                      # side: each child's side-view walking puppet (File8's tools/make_walk.py numbers)
                      "kids": [{"who": "rumi", "side": {"h": 0.975, "ar": 0.508, "cut": 0.721, "split": 0.4935, "px": 0.4935, "py": 0.686, "a": 51.6, "bob": 0.0339}},
                               {"who": "rohan", "side": {"h": 0.9766, "ar": 0.44, "cut": 0.7574, "split": 0.4639, "px": 0.4639, "py": 0.7224, "a": 52.3, "bob": 0.0308}}]},

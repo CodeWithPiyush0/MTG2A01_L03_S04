@@ -14,9 +14,10 @@ first-try answer, the celebration Swiftie. The SME's first draft (another engine
 What this skill adds (`app.js` / `style.css`, marked `[pv regroup add]`):
 - **making a ten in the stacked table**: the sum row's इकाई cell gets File7's lane (`R.onesBox`, `R.laneRod`), so File7's
   `makeTen` / `ring` / `placeRod` work on it. `PVK.regroup`: the dotted ring round ten ones, the "दहाई बनाइए" button
-  (`makeButton` greyed from the start on G2-G4; `childMake`), the new rod dragged to a **target tile** in the tens column
-  (`placeRod` `cfg.tile`; the ghost drag with the hand on T3, by itself after 5 s on G1, after 7 s on G2-G4).
-- **the red carried 1** over the first number's tens digit (`W.carry`, `.pv-carry`) as the new ten goes in.
+  (`makeButton` greyed from the start on G2-G4, centred under the table; `childMake`), the new rod dragged to a **target
+  tile in the carry row** — the table's head band, no words, taller (`vtable` `carry`, `placeCarry`; it shrinks there; the
+  ghost drag with the hand on T3, by itself after 5 s on G1, after 7 s on G2-G4); the child taps it down with the tens.
+- **the carried 1 in a green circle** (File8's digit badge) over the first number's tens digit (`W.carry`, `.pv-carry`).
 - `autoMove` regroups too (the P1-P3 hint animation); `pvAddSumLine` for "…11 इकाई" (nothing written yet) and
   "…और 1 नई दहाई…" (the new rod and the red 1 light).
 - `PV_MAKE_TEN` (page 2): 13 ones, the first ten counted one by one with the VO, ringed, made into a rod by the child,
@@ -44,8 +45,9 @@ What this skill adds (`app.js` / `style.css`, marked `[pv regroup add]`):
 Deleted (deck): pages 6 and 14. No game (the deck has none). Every sum regroups (`tools/lessons.py` asserts it).
 
 ## Still to do — needs a Gemini key with credit
-- **55 VO lines are not rendered yet** (`python tools/lessons.py` lists them; `lesson_vo_manifest.xlsx` "TO RECORD").
-  Until then each plays as a silent beat. 22 clips are File8's own recordings of the same words.
+- **59 VO lines are edge-tts stand-ins** (`hi-IN-SwaraNeural`, `python tools/build_vo_edge.py`) so the animation could be
+  synced; 25 more are File8's own clips (identical words). Before release re-render the stand-ins with Gemini
+  (`python tools/build_vo.py --force <ids>`) or a VO artist (`--from <folder>`), then `python tools/lessons.py`.
 - **Ravi & Sona portraits** are placeholders (the first draft's Aaru / Pari art): `bash tools/gen_story_kids.sh`.
 
 ## Rebuilding
