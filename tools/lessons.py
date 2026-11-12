@@ -343,7 +343,7 @@ card = {
     # the cover (deck page 1's 26 + 18) as File8's (user 2026-11-06): Rumi & Rohan walk in carrying their blocks, the blocks
     # come together - the ones first (ten of them become a new rod), then the tens - in step with the greeting
     "landing_hero": {"kind": "pv_story", "people": ["rumi", "rohan"], "build": "addv", "title_look": "wall", "title_paint": "meadow",
-                     "walk": True, "pile": True, "start_at": 0, "a": 26, "b": 18, "beats": BEATS,
+                     "construct": "castle", "walk": True, "pile": True, "start_at": 0, "a": 26, "b": 18, "beats": BEATS,
                      # side: each child's side-view walking puppet (File8's tools/make_walk.py numbers)
                      "kids": [{"who": "rumi", "side": {"h": 0.975, "ar": 0.508, "cut": 0.721, "split": 0.4935, "px": 0.4935, "py": 0.686, "a": 51.6, "bob": 0.0339}},
                               {"who": "rohan", "side": {"h": 0.9766, "ar": 0.44, "cut": 0.7574, "split": 0.4639, "px": 0.4639, "py": 0.7224, "a": 52.3, "bob": 0.0308}}]},

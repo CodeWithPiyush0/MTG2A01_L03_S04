@@ -945,7 +945,24 @@ const PVSFX = (function(){
     move(){ if(!ok("move", 150)) return; noise(.22, 700, 2300, .09, "bandpass"); },
     whoosh(){ this.move(); },
     unpop(){ tone(700, 300, .1, .12, "sine"); },
-    land(){ if(!ok("land", 45)) return; tone(300, 170, .08, .15, "triangle"); noise(.04, 1000, 700, .1, "bandpass"); }
+    land(){ if(!ok("land", 45)) return; tone(300, 170, .08, .15, "triangle"); noise(.04, 1000, 700, .1, "bandpass"); },
+    assemble(duration, alive){
+      let timer=0,stopped=false,step=0;const start=performance.now(),notes=[523.25,659.25,783.99,1046.5,1174.66,1318.51];
+      const tick=()=>{
+        if(stopped||!alive()||performance.now()-start>=duration)return;
+        if(!document.hidden){const v=isPlaying ? .035 : .065,n=notes[Math.floor(step/4)%notes.length];
+          tone(230+(step%3)*45,110,.075,v,"triangle");noise(.035,1800,650,v*.65,"bandpass");
+          tone(n*1.5,n,.065,v*.4,"sine",.035);
+          if(step%4===0){noise(.12,650,2600,v*.3,"bandpass");tone(n,n,.16,v*.45,"sine",.04);}
+        }
+        step++;timer=setTimeout(tick,130);
+      };
+      tick();return ()=>{stopped=true;clearTimeout(timer);};
+    },
+    buildFinish(){if(!ok("buildFinish",500))return;
+      [523.25,659.25,783.99,1046.5].forEach((n,i)=>{tone(n,n,.3,.065,"sine",i*.065);tone(n*2,n*2,.19,.022,"sine",i*.065+.035);});
+      noise(.28,2400,6800,.035,"highpass",.12);
+    }
   };
 })();
 const PVK = (function(){
@@ -3724,6 +3741,17 @@ const PVLanding = {
       return out; }
     if(kind === "addv"){      // [type, x, y, w, h, picture] - each child's number: the rods side by side, the cubes stacked beside them
       const h = (CARD.landing_hero || {}), w = A.RH * 147 / 987, ch = w * 289 / 300, out = [];
+      if(h.construct){
+        const cells=[];
+        for(let row=0;row<4;row++)for(let col=-4;col<=4;col++){
+          if(Math.abs(col)<=1&&row<2)continue;cells.push({col,row});
+        }
+        for(const row of [4,5])for(const col of [-4,-3,-2,2,3,4])cells.push({col,row});
+        for(const col of [-4,4])cells.push({col,row:6});
+        // 26 + 18: three existing tens and fourteen ones; ten ones make the fourth ten.
+        return cells.map((cell,i)=>{const gold=i>=20&&i<26||i>=36;
+          return ["img",M+cell.col*22,this.FEET-cell.row*22,22,22*30/28,"game-build-unit-"+(gold?"gold":"green")+".svg",i<h.a?0:1,i];});
+      }
       A.GROUPS.forEach(([gx, k])=>{ const n = +h[k] || 0, t = Math.floor(n / 10), u = n % 10;
         for(let j = 0; j < t; j++) out.push(["img", gx + j * (w + 4), B, w, A.RH, "pv_rod11"]);
         for(let i = 0; i < u; i++) out.push(["img", gx + t * (w + 4) + 6, B - i * (ch + 2), w, ch, "pv_cube10"]); });
@@ -3731,12 +3759,21 @@ const PVLanding = {
     return A.order.map(([k, by, seq])=>{ const [x0, y0, x1, y1] = A[k];
       return ["img", M + ((x0 + x1) / 2 - A.WX) * A.S, B + (y1 - A.FOOT) * A.S, (x1 - x0) * A.S, (y1 - y0) * A.S, kind + "_" + k, by, seq || 0]; }); },
   /* the build's pictures, for the boot loader (the landing waits for them) */
-  files(h){ const A = h && this.ART[h.build]; if(A && !A.order) return ["pv_rod11.webp", "pv_cube10.webp"]; return A ? A.order.map(([k])=> h.build + "_" + k + ".webp").concat(A.carry ? [h.build + "_" + A.carry + ".webp"] : []) : []; },
-  piece(type, c){ return '<img alt="" src="assets/' + c + '.webp" class="sgp-im">'; },
+  files(h){ const A = h && this.ART[h.build];
+    const files=A&&!A.order?["pv_rod11.webp","pv_cube10.webp"]:A?A.order.map(([k])=>h.build+"_"+k+".webp").concat(A.carry?[h.build+"_"+A.carry+".webp"]:[]):[];
+    if(h&&h.construct){
+      ["green","gold","glass"].forEach(c=>files.push("game-build-unit-"+c+".svg"));
+      (h.people||[]).forEach(w=>["carry","cheer","side"].forEach(p=>{const f=pvChar(w,p);if(f)files.push(f.slice(7));}));}
+    return files;
+  },
+  piece(type, c){ return '<img alt="" src="assets/' + c + (c.endsWith(".svg")?"":".webp") + '" class="sgp-im">'; },
   html(h){
-    const L = this, kind = L.ART[h.build] ? h.build : "house", plan = L.build(kind, L.MID, L.BASE);
+    const L = this, kind = L.ART[h.build] ? h.build : "house";
     L.KID_X = L.ART[kind].KIDX || [208, 564];                                  // where the children stop (by the build's width)
-    L.FEET = L.ART[kind].KIDY || 202;                                          // and the line their soles are on
+    // Fit the scene above the original centred play button, without moving it.
+    L.FEET = (L.ART[kind].KIDY || 202)-(h.construct?54:0);
+    L.FIG_H=h.construct?178:224;
+    const plan=L.build(kind,L.MID,L.BASE);
     const box = (cls, p, i, extra)=> '<div class="' + cls + '" data-i="' + i + '" style="left:' + (p[1] - p[3] / 2) + 'px;top:' + (p[2] - p[4]) + 'px;width:' +
       p[3] + 'px;height:' + p[4] + 'px;z-index:' + (20 + i) + ';' + (extra || "") + '">';
     const brought = p => p[6] === 0 || p[6] === 1, take = !!L.ART[kind].take;   // (take: the brought pieces stand from the start)
@@ -3759,7 +3796,7 @@ const PVLanding = {
     const casts = plan.map((p, i)=> box("sgp-pcs" + (stand(p) ? " sgp-stand" : ""), p, i) + L.piece(p[0], p[5]) + '</div>').join("");
     const xs = plan.map(p => [p[1] - p[3] / 2, p[1] + p[3] / 2]), bx0 = Math.min(...xs.map(x => x[0])), bx1 = Math.max(...xs.map(x => x[1]));
     const foot = L.BASE + (L.ART[kind].DY || 0);                                // (the build's foot line: a castle stands DY lower)
-    return '<div class="sgp sgp-' + kind + '" id="sgp">' +
+    return '<div class="sgp sgp-' + kind + (h.construct ? ' sgp-build-story' : '') + '" id="sgp">' +
       '<div class="sgp-bcast" style="transform-origin:' + L.MID + 'px ' + foot + 'px">' + casts + '</div>' +
       '<i class="sgp-bshd" style="left:' + (bx0 - 6) + 'px;width:' + (bx1 - bx0 + 12) + 'px;top:' + (foot - 7) + 'px"></i>' +
       pieces + kid(h.people[0], 0) + kid(h.people[1], 1) +
@@ -3982,14 +4019,16 @@ const PVLanding = {
     /* landing_hero.walk (user 2026-11-02 - the cover after the game): each child walks in side-on from beyond the card's
        edge, as in the game (pvWalk, its kids[].side), and turns to the front at their spot. The walkers move in a layer
        the size of the card's picture that clips them, so they come out from behind its rounded edge. */
-    const SIDE = ((CARD.landing_hero || {}).kids) || ((CARD.slides.find(x => x.type === "ADD_GAME") || {}).data || {}).kids || [];   // (File10: no game - the cover carries its walkers)
+    const SIDE = ((CARD.landing_hero || {}).kids) || ((CARD.slides.find(x => x.type === "ADD_GAME") || {}).data || {}).kids || [];
     /* carry (user 2026-11-02 "both will have their blocks in their hands, walk in, stop, then all the blocks get added";
        "feel like the blocks are on the kids hand"): each child's blocks, small (SC), resting on their hands as one would
        carry them - the rods lying across, the cubes in a row on top (bundle: each piece's middle from the hands' point, and
        its turn). In the walker on the side picture's hands (dress: they bob with the steps); standing, the child holds
        them out in the carry pose (char_<who>_carry) on its palms (L.PALMS) - the cover's own pieces there (held[i]) */
-    const SC = .5, held = {};
+    const SC = (CARD.landing_hero||{}).construct ? .26 : .5, held = {};
     const bundle = s =>{ const own = plan.map((p, i)=> i).filter(i => mine(i) === s), rods = own.filter(isRod), cubes = own.filter(i => !isRod(i)), out = {};
+      if((CARD.landing_hero||{}).construct){const cols=Math.min(5,own.length),cw=plan[own[0]][3]*SC+.4,ch=plan[own[0]][4]*SC-.4;
+        own.forEach((i,j)=>out[i]={x:(j%cols-(cols-1)/2)*cw,y:-(Math.floor(j/cols)+.5)*ch,r:0});return out;}
       const th = plan[rods[0] || own[0]][3] * SC + 1;                           // (a lying rod's thickness)
       rods.forEach((i, j)=>{ out[i] = { x: 0, y: -(j + .5) * th, r: 90 }; });
       cubes.forEach((i, j)=>{ const c = plan[i][3] * SC + 1.5, ch = plan[i][4] * SC;
@@ -3997,7 +4036,7 @@ const PVLanding = {
       return out; };
     const palm = (s, side)=> (L.PALMS[kids[s].dataset.who] || {})[side] || (side === "side" ? [.75, .45] : [.5, .47]);
     const dress = s => (bob, W, H)=>{ const b = bundle(s), [fx, fy] = palm(s, "side"), ax = W * fx, ay = H * fy + 2;
-      Object.keys(b).forEach(i =>{ const p = plan[i], o = b[i], im = document.createElement("img"); im.src = "assets/" + p[5] + ".webp"; im.alt = "";
+      Object.keys(b).forEach(i =>{ const p = plan[i], o = b[i], im = document.createElement("img"); im.src = "assets/" + p[5] + (p[5].endsWith(".svg")?"":".webp"); im.alt = "";
         Object.assign(im.style, { left: (ax + o.x - p[3] * SC / 2) + "px", top: (ay + o.y - p[4] * SC / 2) + "px", width: p[3] * SC + "px", height: p[4] * SC + "px", rotate: o.r + "deg" });
         bob.appendChild(im); }); };
     const hold = s =>{ const b = bundle(s), im = q(kids[s], '.sgp-pose[data-for~="carry"]') || q(kids[s], '.sgp-pose[data-for~="idle"]');
@@ -4006,7 +4045,10 @@ const PVLanding = {
       pose(kids[s], "carry");
       Object.keys(b).forEach(i =>{ const p = plan[i], o = b[i], e = pcs[i];
         const h = held[i] = { x: ax + o.x - p[1], y: ay + o.y - (p[2] - p[4] / 2), s: SC, r: o.r };   // (about the piece's middle)
-        Object.assign(e.style, { transformOrigin: "50% 50%", translate: h.x + "px " + h.y + "px", scale: String(SC), rotate: o.r + "deg", zIndex: 50 + +i }); e.classList.add("on"); }); };
+        // The carried pieces belong to the figure's movement layer, so its
+        // hands, leaning body and blocks always move together.
+        tilt(kids[s]).appendChild(e);e.dataset.carried="1";
+        Object.assign(e.style,{left:(ax-L.KID_X[s]+o.x-p[3]/2)+"px",top:(ay-L.FEET+o.y-p[4]/2)+"px",transformOrigin:"50% 50%",translate:"0 0",scale:String(SC),rotate:o.r+"deg",zIndex:50+ +i});e.classList.add("on"); }); };
     const walkIn = (s, carry)=>{ const k = kids[s], who = k.dataset.who, S = (SIDE.find(x => x.who === who) || {}).side, src = pvChar(who, "side"), card = root.closest(".sg-card");
       if(!S || !src || !card){ zoom(s); return Promise.resolve(); }
       const z = k_(), rr = root.getBoundingClientRect(), cr = card.getBoundingClientRect(), B = 9;   // (9: the picture's inset in the card)
@@ -4022,23 +4064,20 @@ const PVLanding = {
     /* landing_hero.pile (user 2026-11-02 "simplify - just blocks with animation that summarise this file"): no written sum.
        The two numbers' blocks come together into one pile in the middle - the ones first, then the tens (the lesson's
        rule) - each child leaning in as theirs hop over; the pile glows; the cheer. kind: "o" | "t" */
-    const isRod = i => plan[i][5] === "pv_rod11", mine = i => plan[i][1] < L.MID ? 0 : 1;
+    const isRod = i => plan[i][5] === "pv_rod11", mine = i => plan[i][6]===0||plan[i][6]===1?plan[i][6]:plan[i][1] < L.MID ? 0 : 1;
     const slots = (()=>{ const h = CARD.landing_hero || {}, n = (+h.a || 0) + (+h.b || 0), t = Math.floor(n / 10), u = n % 10;
       const r = plan.find((p, i)=> isRod(i)) || plan[0], w = r[3], ch = (plan.find((p, i)=> !isRod(i)) || r)[4], B = r[2];
       const W = t * (w + 4) + (u ? 8 + Math.ceil(u / 5) * (w + 2) : 0), x0 = L.MID - W / 2;
       return { t: [...Array(t)].map((_, j)=> ({ x: x0 + j * (w + 4) + w / 2, y: B })),
                o: [...Array(u)].map((_, j)=> ({ x: x0 + t * (w + 4) + 8 + Math.floor(j / 5) * (w + 2) + w / 2, y: B - (j % 5) * (ch + 2) })) }; })();
-    /* [pv regroup add] File10 (26 + 18, user 2026-11-06 "the cover as File8's"): the ones are more than ten - the first ten hop
-       onto the new rod's place (the last tens slot), stacked as its ten cubes, and become ONE rod there; the rest are the
-       pile's ones. newRods: the rods made so (they glow with the pile) */
-    const newRods = [];
     const gather = async kind =>{
       const list = plan.map((p, i)=> i).filter(i => isRod(i) === (kind === "t")).sort((a, b)=> mine(a) - mine(b));
-      const nr = kind === "o" && list.length > slots.o.length + 9 ? slots.t[slots.t.length - 1] : null, made = [];
       [0, 1].forEach(s => list.some(i => mine(i) === s) && setTimeout(()=> lean(s, 7, 520), s * 300));
-      await Promise.all(list.map((i, n)=> wait(n * 90).then(()=>{ const p = plan[i], inTen = nr && n < 10;
-        const to = inTen ? { x: nr.x, y: nr.y - n * p[3] * 93.2 / 147 } : slots[kind][nr ? n - 10 : n]; if(!to) return;
-        if(inTen) made.push(i);
+      await Promise.all(list.map((i, n)=> wait(n * 90).then(()=>{ const p = plan[i], to = slots[kind][n]; if(!to) return;
+        if(pcs[i].dataset.carried){const rr=root.getBoundingClientRect(),r=pcs[i].getBoundingClientRect(),z=k_();
+          held[i]={x:(r.left+r.width/2-rr.left)/z-p[1],y:(r.top+r.height/2-rr.top)/z-(p[2]-p[4]/2),s:SC,r:isRod(i)?90:0};
+          root.appendChild(pcs[i]);Object.assign(pcs[i].style,{left:(p[1]-p[3]/2)+"px",top:(p[2]-p[4])+"px"});delete pcs[i].dataset.carried;
+        }
         const h = held[i] || { x: 0, y: 0, s: 1, r: 0 }, dx = to.x - p[1], dy = to.y - p[2], apex = Math.min(h.y, dy) - 46, F = [];   // (from the hands, when held)
         for(let j = 0; j <= 10; j++){ const t = j / 10, sc = (h.s + (1 - h.s) * t).toFixed(3);
           F.push({ translate: (h.x + (dx - h.x) * t).toFixed(1) + "px " + ((1 - t) * (1 - t) * h.y + 2 * (1 - t) * t * apex + t * t * dy).toFixed(1) + "px",
@@ -4047,16 +4086,73 @@ const PVLanding = {
         shadow(i, false); pcs[i].style.zIndex = 60 + n; sound(()=> PVSFX.appear());
         return pcs[i].animate(F, { duration: 480, easing: "linear", fill: "forwards" }).finished.catch(()=>{}).then(()=>{
           sound(()=> PVSFX.land()); if(n % 2 === 0) sparkle(to.x, to.y - p[4] * .6); }); })));
-      if(nr && made.length === 10){ await wait(220);
-        const ri = plan.findIndex((p, i)=> isRod(i)), rp = plan[ri], rod = pcs[ri].cloneNode(true);
-        rod.removeAttribute("data-i"); rod.classList.add("on", "sgp-newrod");
-        Object.assign(rod.style, { left: (nr.x - rp[3] / 2) + "px", top: (nr.y - rp[4]) + "px", translate: "0px 0px", scale: "1", rotate: "0deg", zIndex: 75 });
-        pcs[ri].parentNode.appendChild(rod); newRods.push(rod);
-        made.forEach(i => pcs[i].animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" }));
-        rod.animate([{ scale: ".7", opacity: 0, filter: "brightness(1.8)" }, { scale: "1.12", opacity: 1, filter: "brightness(1.5)", offset: .55 }, { scale: "1", filter: "brightness(1)" }], { duration: 520, easing: "ease-out" });
-        sparkle(nr.x, nr.y - rp[4] * .6, true); sound(()=> _tone([520, 780], "sine", .25, .08));
-        await wait(350); }
       await wait(250); };
+    // The cover uses the game's toy-brick palette and one continuous build.
+    // All 26 + 18 carried bricks stay in the scene; ten ones regroup before the castle builds.
+    const regroupCover=async still=>{
+      const ids=[20,21,22,23,24,25,37,38,39,40];
+      const active=()=>root.isConnected&&document.body.classList.contains("is-start");
+      if(still){ids.forEach(i=>{pcs[i].querySelector("img").src="assets/game-build-unit-green.svg";pcs[i].dataset.regrouped="1";});return;}
+      const group=document.createElement("div");group.className="sgp-regroup";
+      Object.assign(group.style,{left:(L.MID-78)+"px",top:(L.FEET-104)+"px"});
+      group.innerHTML='<span>10 इकाइयाँ = 1 दहाई</span>';root.appendChild(group);
+      await Promise.all(ids.map(async(i,n)=>{
+        await wait(n*50);if(!active())return;
+        const e=pcs[i],p=plan[i],rr=root.getBoundingClientRect(),r=e.getBoundingClientRect(),z=k_();
+        const x=L.MID+(n-4.5)*13,y=L.FEET-70;
+        const dx=(r.left+r.width/2-rr.left)/z-x,dy=(r.top+r.height/2-rr.top)/z-y;
+        e.getAnimations().forEach(a=>a.cancel());root.appendChild(e);delete e.dataset.carried;
+        e.classList.add("on");Object.assign(e.style,{left:(x-p[3]/2)+"px",top:(y-p[4]/2)+"px",scale:".55",translate:"0 0",rotate:"0deg",zIndex:110});
+        await e.animate([{translate:dx+"px "+dy+"px",scale:String(SC)},{translate:"0 -12px",scale:".55",offset:.7},{translate:"0 0",scale:".55"}],{duration:420,easing:"ease-in-out",fill:"forwards"}).finished.catch(()=>{});
+      }));
+      if(!active()){group.remove();return;}await wait(450);
+      group.classList.add("linked");sound(()=>PVSFX.magic());
+      ids.forEach(i=>{pcs[i].querySelector("img").src="assets/game-build-unit-green.svg";pcs[i].dataset.regrouped="1";});
+      group.querySelector("span").textContent="1 नई दहाई";
+      await wait(700);group.classList.add("out");await wait(220);group.remove();
+    };
+    const assembleCover=async still=>{
+      await regroupCover(still);
+      const active=()=>root.isConnected&&document.body.classList.contains("is-start");
+      const order=plan.map((p,i)=>i),targets=new Map(plan.map((p,i)=>[i,{x:p[1],y:p[2]-p[4]/2,s:1,r:0}]));
+      const delays=order.map((_,i)=>i*3400/Math.max(1,order.length-1));
+      const roofTop=Math.min(...plan.map(p=>p[2]-p[4]));
+      root.classList.add("sgp-front-build");root.style.setProperty("--sg-feet",L.FEET+"px");
+      root.dataset.buildTotal=String(order.length);
+      const ground=document.createElement("i");ground.className="sgp-front-ground";
+      Object.assign(ground.style,{left:(L.MID-112)+"px",top:(L.FEET-3)+"px"});root.appendChild(ground);
+      const doorway=document.createElement("div");doorway.className="sgp-front-door";
+      Object.assign(doorway.style,{left:(L.MID-32)+"px",top:(L.FEET-44)+"px"});
+      doorway.innerHTML='<svg viewBox="0 0 64 44" aria-hidden="true"><defs><linearGradient id="coverGateDepth" x2="1" y2="1"><stop stop-color="#193F37" stop-opacity=".65"/><stop offset="1" stop-color="#386845" stop-opacity=".32"/></linearGradient></defs><path d="M2 44V26C2 11 15 2 32 2s30 9 30 24v18" fill="url(#coverGateDepth)"/><path d="M8 44V27C8 15 18 8 32 8" fill="none" stroke="#173D33" stroke-opacity=".22" stroke-width="3"/></svg>';
+      root.appendChild(doorway);
+      root.querySelectorAll(".sgp-pcs").forEach(e=>e.style.opacity="0");
+      const place=async(i,n)=>{
+        if(!still)await wait(delays[n]);if(!active())return;
+        const e=pcs[i],p=plan[i],to=targets.get(i),owner=mine(i);
+        let from={x:to.x,y:to.y,s:to.s,r:to.r};
+        if(!still){const rr=root.getBoundingClientRect(),r=e.getBoundingClientRect(),z=k_();
+          from={x:(r.left+r.width/2-rr.left)/z,y:(r.top+r.height/2-rr.top)/z,s:e.dataset.regrouped?.55:SC,r:isRod(i)?90:0};}
+        e.getAnimations().forEach(a=>a.cancel());root.appendChild(e);delete e.dataset.carried;
+        Object.assign(e.style,{left:(to.x-p[3]/2)+"px",top:(to.y-p[4]/2)+"px",translate:"0 0",scale:String(to.s),rotate:to.r+"deg",transformOrigin:"50% 50%",zIndex:50+n});
+        e.classList.add("on","sgp-front-piece");e.dataset.buildOrder=String(n);
+        if(!still){
+          lean(owner,4,260);const apex=Math.min(from.y,to.y)-35,F=[];
+          for(let j=0;j<=12;j++){const t=j/12,x=from.x+(to.x-from.x)*t,y=(1-t)*(1-t)*from.y+2*(1-t)*t*apex+t*t*to.y;
+            F.push({translate:(x-to.x)+"px "+(y-to.y)+"px",scale:String(from.s+(to.s-from.s)*t),rotate:(from.r+(to.r-from.r)*t)+"deg",offset:t*.86});}
+          F.push({translate:"0 0",scale:(to.s*1.06)+" "+(to.s*.95),rotate:to.r+"deg",offset:.94},{translate:"0 0",scale:String(to.s),rotate:to.r+"deg"});
+          if(!kids[owner].querySelector(".sgp-pc[data-carried]"))pose(kids[owner],"cheer",true);
+          await e.animate(F,{duration:620,easing:"linear",fill:"forwards"}).finished.catch(()=>{});
+          if(!active())return;sound(()=>PVSFX.land());sparkle(to.x,to.y, false);
+        }
+        e.dataset.placed="1";if(i===22||i===28)e.dataset.window="1";
+      };
+      const stop=still?()=>{}:PVSFX.assemble(4100,active);
+      try{await Promise.all(order.map(place));}finally{stop();}
+      if(!active())return;root.classList.add("built");
+      doorway.classList.add("on");
+      kids.forEach(k=>pose(k,"cheer",!still));
+      if(!still){burst(L.MID,roofTop+34);sound(()=>PVSFX.buildFinish());hop(0,2,14);hop(1,2,16);await wait(650);}
+    };
     /* the addition cover (ART.addv), in step with the greeting as the tens cover is */
     const addv = async ()=>{
       const idx = plan.map((p, i)=> i), vs = q(root, ".sgp-vsum"), ln = vs ? [...vs.children] : [], PILE = !!(CARD.landing_hero || {}).pile;
@@ -4068,14 +4164,15 @@ const PVLanding = {
         pcs[i].animate([{ translate: "0 -90px", opacity: 0, easing: "cubic-bezier(.55,0,1,.6)" }, { translate: "0 0", opacity: 1, offset: .55 },
           { translate: "0 0", scale: "1.16 .84", offset: .7 }, { translate: "0 -5px", scale: ".96 1.05", offset: .85 }, { translate: "0 0", scale: "1 1" }], { duration: 520, easing: "ease-out" });
         setTimeout(()=>{ shadow(i, true); sound(()=> PVSFX.land()); }, 290); }, n * 110));
-      if(PILE){ await wait(CARRY ? 400 : idx.length * 110 + 600);
+      if(PILE){ await wait(CARRY ? 850 : idx.length * 110 + 600);
+        if((CARD.landing_hero||{}).construct){await assembleCover(false);return;}
         await until(BT.a); await gather("o");                                   // "आज हम" - the ones together
         await until(BT.b); await gather("t");                                   // "संख्याओं" - then the tens
         if(CARRY) kids.forEach(kd => pose(kd, "idle", true));                   // (their hands empty now)
         await until(BT.q);                                                      // "जोड़ना" - the pile: one number now
-        idx.forEach((i, n)=> setTimeout(()=> pcs[i].classList.add("sgp-glow"), n * 40)); newRods.forEach(e => e.classList.add("sgp-glow"));
+        idx.forEach((i, n)=> setTimeout(()=> pcs[i].classList.add("sgp-glow"), n * 40));
         sparkle(L.MID - 30, slots.t.length ? slots.t[0].y - 90 : 20, true); sparkle(L.MID + 40, slots.t.length ? slots.t[0].y - 60 : 40, true);
-        await Promise.all([until(BT.cheer), wait(800)]); idx.forEach(i => pcs[i].classList.remove("sgp-glow")); newRods.forEach(e => e.classList.remove("sgp-glow"));   // (the glow seen a moment)
+        await Promise.all([until(BT.cheer), wait(800)]); idx.forEach(i => pcs[i].classList.remove("sgp-glow"));   // (the glow seen a moment)
         root.classList.add("built"); burst(L.MID, (slots.t[0] || { y: 100 }).y - 70); sound(()=> _tone([660, 880, 1180], "sine", .5, .1));
         kids.forEach(kd => pose(kd, "cheer", true)); hop(0, 1, 14); setTimeout(()=> hop(1, 1, 16), 110);
         await until(BT.end); await wait(500); return; }
@@ -4090,7 +4187,8 @@ const PVLanding = {
     let started = false;
     const go = async ()=>{ if(started) return; started = true;
       await ready;
-      if(reduce){ root.classList.add("go", "still", "built"); pcs.forEach(p => p.classList.add("on", "landed")); root.querySelectorAll(".sgp-pcs").forEach(p => p.classList.add("on")); done(); return; }
+      if(reduce){ root.classList.add("go", "still", "built"); pcs.forEach(p => p.classList.add("on", "landed")); root.querySelectorAll(".sgp-pcs").forEach(p => p.classList.add("on"));
+        if((CARD.landing_hero||{}).construct){kids.forEach(k=>move(k).style.opacity="1");await assembleCover(true);}done();return; }
       if(KIND === "addv"){ await addv(); done(); return; }
       if(L.ART[KIND].drop){ await tens(); done(); return; }
       if(TAKE){                                                                  // subtraction: the whole castle; each child takes a top away
@@ -4529,6 +4627,9 @@ function conceptTileHTML(c){
    from Safari 18.4). */
 /* @asset-sizes:begin (generated by tools/gen_asset_sizes.js - do not edit by hand) */
 const ASSET_SIZES = {
+  "assets/game-build-unit-glass.svg": 1075,
+  "assets/game-build-unit-gold.svg": 795,
+  "assets/game-build-unit-green.svg": 795,
   "assets/bg_landing_game.webp": 13874,
   "assets/bg_landing_soft2.webp": 60972,
   "assets/bgdeco_spark.svg": 220,

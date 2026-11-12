@@ -18,6 +18,7 @@
    "rohan"
   ],
   "build": "addv",
+  "construct": "castle",
   "title_look": "wall",
   "title_paint": "meadow",
   "walk": true,

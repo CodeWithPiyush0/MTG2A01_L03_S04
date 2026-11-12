@@ -65,3 +65,5 @@ Dev: `index.html?slide=N` opens slide N directly; `?dev=1` adds the slide naviga
 ## Deploying (Vercel)
 As File8: a plain static site; `vercel.json` pins no build and the output directory `.`; `.vercelignore` keeps the dev
 files out. The upload is `index.html`, `MTG2A01_L03_S04.html`, `app.js`, `style.css`, `swiftpal-bridge.js`, `vercel.json`, `assets/`.
+
+Cover update (2026-11-12): the original 26 + 18 bricks travel from Rumi and Rohanâ€™s hands into a front-facing, ground-level castle. Ten of the fourteen gold ones visibly regroup as a new green ten before those same pieces continue building. The final castle retains all 44 bricks (40 green, 4 gold), with building SFX and a character celebration. The centred play button and all lesson activities are unchanged.

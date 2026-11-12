@@ -2627,3 +2627,19 @@ body.spk-done .audio-chip,body.spk-done .tut-audio,body.spk-done .sg-vo{pointer-
 /* the "दहाई बनाइए" button pulses exactly as the → button does (user 2026-11-06) */
 .pv-make.pulse{animation:pvBtnPop .6s cubic-bezier(.34,1.3,.5,1) both,pvBtnPulse 1.15s cubic-bezier(.34,.62,.3,1) .6s infinite;}
 @media (prefers-reduced-motion:reduce){ .pv-carry.pv-say,.pv-target.pv-tile.pulse,.pv-make.pulse{animation:none !important;} }
+
+/* Front-facing block castle cover, with one visible regrouping step. */
+.sgp-build-story > .sgp-bshd,.sgp-front-build > .sgp-bcast{display:none;}
+.sgp-front-ground{position:absolute;width:224px;height:12px;z-index:10;pointer-events:none;background:radial-gradient(ellipse,#477B473D,transparent 70%);border-radius:50%;}
+.sgp-front-piece{pointer-events:none;}
+@media(prefers-reduced-motion:reduce){.gm-blueprint{transition:none;}}
+.sgp-front-door{position:absolute;width:64px;height:44px;z-index:12;pointer-events:none;opacity:0;transition:opacity .4s;}
+.sgp-front-door svg{display:block;width:100%;height:100%;}
+.sgp-front-door.on{opacity:1;}
+@media(prefers-reduced-motion:reduce){.sgp-front-door{transition:none;}}
+
+.sgp-regroup{position:absolute;width:156px;height:54px;border:2px dashed #e2a339;border-radius:14px;background:#fff7dbcc;z-index:100;pointer-events:none;transition:opacity .22s,border-color .3s,background .3s;}
+.sgp-regroup span{position:absolute;left:-35px;top:-25px;width:222px;text-align:center;font:800 17px "Baloo 2",sans-serif;color:#416545;text-shadow:0 1px white;}
+.sgp-regroup.linked{border-style:solid;border-color:#5eab4c;background:#eaf9dccc;box-shadow:0 0 20px #b5ea6c77;}
+.sgp-regroup.out{opacity:0;}
+.sgp-front-piece[data-window]::after{content:"";position:absolute;left:20%;top:20%;width:60%;height:60%;background:url(assets/game-build-unit-glass.svg) center/100% 100%;border-radius:2px;box-shadow:0 0 0 1px #3d7f43;}
